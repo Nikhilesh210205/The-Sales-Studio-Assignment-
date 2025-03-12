@@ -15,6 +15,8 @@ function App() {
   const [claiming, setClaiming] = useState(false);
   const [nextClaimTime, setNextClaimTime] = useState<number | null>(null);
   const [timeLeft, setTimeLeft] = useState<string | null>(null);
+  const [selectedCoupon, setSelectedCoupon] = useState<string | null>(null);
+
 
   useEffect(() => {
     fetchCoupons();
@@ -56,7 +58,7 @@ function App() {
 
     if (recentClaims && recentClaims.length > 0) {
       const lastClaim = new Date(recentClaims[0].claimed_at);
-      const nextAvailable = lastClaim.getTime() + 60 * 60 * 1000; // 1 hour cooldown
+      const nextAvailable = lastClaim.getTime() + 60 * 60 * 1000;
       setNextClaimTime(nextAvailable);
     }
   };
@@ -78,14 +80,14 @@ function App() {
   };
 
   const claimCoupon = async () => {
-    if (claiming) return;
+    if (claiming || !selectedCoupon) return;
 
     try {
       setClaiming(true);
-      const availableCoupon = coupons.find((c) => !c.is_claimed);
+      const couponToClaim = coupons.find((c) => c.id === selectedCoupon);
 
-      if (!availableCoupon) {
-        toast.error('No coupons available');
+      if (!couponToClaim) {
+        toast.error('Please select a valid coupon');
         return;
       }
 
@@ -117,7 +119,7 @@ function App() {
       const { error: updateError } = await supabase
         .from('coupons')
         .update({ is_claimed: true })
-        .eq('id', availableCoupon.id);
+        .eq('id', couponToClaim.id);
 
       if (updateError) throw updateError;
 
@@ -125,7 +127,7 @@ function App() {
         .from('claims')
         .insert([
           {
-            coupon_id: availableCoupon.id,
+            coupon_id: couponToClaim.id,
             browser_id: browserId,
             ip_address: 'client-ip',
           },
@@ -133,7 +135,7 @@ function App() {
 
       if (claimError) throw claimError;
 
-      toast.success(`Claimed coupon: ${availableCoupon.code}`);
+      toast.success(`Claimed coupon: ${couponToClaim.code}`);
       fetchCoupons();
       checkLastClaim();
     } catch (error) {
@@ -153,7 +155,7 @@ function App() {
             Coupon Distribution System
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Get exclusive discounts! Each user can claim one coupon per hour.
+            Select a coupon to claim. Each user can claim one coupon per hour.
           </p>
         </div>
 
@@ -172,27 +174,28 @@ function App() {
               coupons.map((coupon) => (
                 <div
                   key={coupon.id}
-                  className={`rounded-lg border p-6 ${
+                  className={`rounded-lg border p-6 flex items-center justify-between ${
                     coupon.is_claimed
                       ? 'bg-gray-50 border-gray-200'
                       : 'bg-white border-gray-200 hover:border-blue-500 transition-colors'
                   }`}
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {coupon.code}
-                      </h3>
-                      <p className="mt-2 text-sm text-gray-600">
-                        {coupon.description}
-                      </p>
-                    </div>
-                    {coupon.is_claimed && (
-                      <span className="flex-shrink-0 inline-block px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                        Claimed
-                      </span>
-                    )}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{coupon.code}</h3>
+                    <p className="mt-2 text-sm text-gray-600">{coupon.description}</p>
                   </div>
+                  {!coupon.is_claimed && (
+                    <button
+                      className={`px-4 py-2 text-sm font-medium rounded-lg shadow ${
+                        selectedCoupon === coupon.id
+                          ? 'bg-blue-700 text-white'
+                          : 'bg-gray-200 hover:bg-gray-300'
+                      }`}
+                      onClick={() => setSelectedCoupon(coupon.id)}
+                    >
+                      {selectedCoupon === coupon.id ? 'Selected' : 'Select'}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -217,7 +220,7 @@ function App() {
                 `Wait ${timeLeft}`
               ) : (
                 'Claim Next Available Coupon'
-              )}
+             )}
             </button>
           </div>
         </div>
